@@ -13,7 +13,7 @@ services:
     image: mariadb:10.7
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: test
+      MYSQL_DATABASE: applications
       MYSQL_USER: user
       MYSQL_PASSWORD: password
     ports:

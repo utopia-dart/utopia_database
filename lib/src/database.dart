@@ -268,7 +268,7 @@ class Database {
     return adapter.getDefaultDatabase();
   }
 
-  bool ping() {
+  Future<bool> ping() {
     return adapter.ping();
   }
 
@@ -289,8 +289,18 @@ class Database {
       });
     }).toList();
 
-    // return await createCollection(metadata, attributes);
+    await createCollection(metadata, attributes, []);
     return true;
+  }
+
+  Future<Document?> createCollection(
+      String id, List attributes, List indexes) async {
+    await adapter.createCollection(id, attributes, indexes);
+
+    if (id == metadata) {
+      return Document(collection);
+    }
+    return null;
   }
 
   Future<bool> exists(String database, {String? collection}) async {

@@ -55,7 +55,7 @@ abstract class Adapter {
     return value;
   }
 
-  bool ping();
+  Future<bool> ping();
   Future<bool> create(String name);
   Future<bool> exists(String database, {String? collection});
   Future<List> list();

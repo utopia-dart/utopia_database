@@ -16,21 +16,19 @@ class MariaDB extends Adapter {
           'CREATE DATABASE IF NOT EXISTS `$name` /*!40100 DEFAULT CHARACTER SET utf8mb4 */;');
       return true;
     } catch (e) {
-      return false;
-    } finally {
-      await _connection!.close();
+      rethrow;
     }
   }
 
   Future<void> init(
       {required String host,
       required int port,
-      String? username,
+      String? user,
       String? password}) async {
     _connection = await MySqlConnection.connect(ConnectionSettings(
       host: host,
       port: port,
-      user: username,
+      user: user,
       password: password,
     ));
   }
@@ -46,10 +44,10 @@ class MariaDB extends Adapter {
     for (var i = 0; i < attributes.length; i++) {
       final attribute = attributes[i];
       final attrId = filter(attribute.id);
-      var attrType = _getSQLType(
-          attribute.type, attribute.size ?? 0, attribute.signed ?? true);
+      var attrType = _getSQLType(attribute['type'], attribute['size'] ?? 0,
+          attribute['signed'] ?? true);
 
-      if (attribute.array ?? false) {
+      if (attribute['array'] ?? false) {
         attrType = 'LONGTEXT';
       }
 
@@ -59,7 +57,7 @@ class MariaDB extends Adapter {
     for (var i = 0; i < indexes.length; i++) {
       final index = indexes[i];
       final indexId = filter(index.id);
-      final indexType = index.type;
+      final indexType = index['type'];
       final indexAttributes = <String>[];
 
       for (var j = 0; j < index.attributes.length; j++) {
@@ -77,7 +75,7 @@ class MariaDB extends Adapter {
 
     try {
       if (_connection == null) return false;
-      await _connection!.query('''
+      final query = '''
         CREATE TABLE IF NOT EXISTS `$defaultDatabase`.`${namespace}_$id` (
           `_id` int(11) unsigned NOT NULL AUTO_INCREMENT,
           `_uid` CHAR(255) NOT NULL,
@@ -86,12 +84,13 @@ class MariaDB extends Adapter {
           `_permissions` MEDIUMTEXT DEFAULT NULL,
           ${attributeStrings.join(',\n')},
           PRIMARY KEY (`_id`),
-          ${indexStrings.join(',\n')},
+          ${indexStrings.join(',\n')}${indexStrings.isNotEmpty ? ',' : ''}
           UNIQUE KEY `_uid` (`_uid`),
           KEY `_created_at` (`_createdAt`),
           KEY `_updated_at` (`_updatedAt`)
         )
-      ''');
+      ''';
+      await _connection!.query(query);
 
       await _connection!.query('''
         CREATE TABLE IF NOT EXISTS `$defaultDatabase`.`${namespace}_${id}_perms` (
@@ -113,9 +112,13 @@ class MariaDB extends Adapter {
   }
 
   @override
-  Future<bool> delete(String name) {
-    // TODO: implement delete
-    throw UnimplementedError();
+  Future<bool> delete(String name) async {
+    name = filter(name);
+    if (_connection == null) return false;
+
+    final result = await _connection!.query("DROP DATABASE `$name`;");
+
+    return result.affectedRows == 1;
   }
 
   @override
@@ -125,20 +128,52 @@ class MariaDB extends Adapter {
   }
 
   @override
-  Future<bool> exists(String database, {String? collection}) {
-    // TODO: implement exists
-    throw UnimplementedError();
+  Future<bool> ping() async {
+    try {
+      final res = await _connection!.query('SELECT 1;');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> exists(String database, {String? collection}) async {
+    if (_connection == null) return false;
+
+    database = filter(database);
+
+    late String select, from, where, match;
+    if (collection != null) {
+      collection = filter(collection);
+
+      select = 'TABLE_NAME';
+      from = 'INFORMATION_SCHEMA.TABLES';
+      where = 'TABLE_SCHEMA = ? AND TABLE_NAME = ?';
+      match = '${getNamespace()}_$collection';
+    } else {
+      select = 'SCHEMA_NAME';
+      from = 'INFORMATION_SCHEMA.SCHEMATA';
+      where = 'SCHEMA_NAME = ?';
+      match = database;
+    }
+
+    final results = await _connection!.query(
+      'SELECT $select FROM $from WHERE $where',
+      collection != null
+          ? [database, '$getNamespace()_$collection']
+          : [database],
+    );
+
+    final document = results.first.fields;
+
+    return (document[select] ?? '') == match ||
+        (document[select.toLowerCase()] ?? '') == match;
   }
 
   @override
   Future<List> list() {
     // TODO: implement list
-    throw UnimplementedError();
-  }
-
-  @override
-  bool ping() {
-    // TODO: implement ping
     throw UnimplementedError();
   }
 
