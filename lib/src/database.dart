@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:utopia_database/src/adapter.dart';
 
+import 'attribute.dart';
 import 'document.dart';
 import 'date_time_extension.dart';
 
@@ -276,25 +277,19 @@ class Database {
     var name = adapter.getDefaultDatabase();
     adapter.create(name);
 
-    var attributes = [
-      ['name', varString, 512, true],
-      ['attributes', varString, 1000000, false],
-      ['indexes', varString, 1000000, false],
-    ].map((attribute) {
-      return Document({
-        '\$id': attribute[0],
-        'type': attribute[1],
-        'size': attribute[2],
-        'required': attribute[3],
-      });
-    }).toList();
+    final attributes = [
+      Attribute(id: 'name', type: varString, size: 512, required: true),
+      Attribute(
+          id: 'attributes', type: varString, size: 1000000, required: false),
+      Attribute(id: 'indexes', type: varString, size: 1000000, required: false),
+    ];
 
     await createCollection(metadata, attributes, []);
     return true;
   }
 
   Future<Document?> createCollection(
-      String id, List attributes, List indexes) async {
+      String id, List<Attribute> attributes, List indexes) async {
     await adapter.createCollection(id, attributes, indexes);
 
     if (id == metadata) {

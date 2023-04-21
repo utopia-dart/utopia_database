@@ -40,8 +40,51 @@ class Document extends MapMixin<String, dynamic> {
 
     innerMap = input;
   }
+  dynamic getAttribute(String name, [dynamic defaultValue]) {
+    if (containsKey(name)) {
+      return this[name];
+    }
+    return defaultValue;
+  }
+
+  Map<String, dynamic> getAttributes() {
+    Map<String, dynamic> attributes = {};
+    List<String> excludedAttributes = [
+      '\$id',
+      '\$internalId',
+      '\$collection',
+      '\$permissions',
+      '\$createdAt',
+      '\$updatedAt'
+    ];
+    innerMap.forEach((key, value) {
+      if (value.isGetter && !value.isStatic) {
+        if (!excludedAttributes.contains(key)) {
+          return;
+        }
+        attributes[key] = value;
+      }
+    });
+
+    return attributes;
+  }
 
   String? get id => innerMap['\$id'];
+  String? get internalId => innerMap['\$internalId'];
+  String? get createdAt => getAttribute('\$createdAt');
+  String? get updatedAt => getAttribute('\$updatedAt');
+  Map<String, dynamic> get permissions => getAttribute('\$permissions');
+  List<String> getPermissionsByType(String type) {
+    List<String> typePermissions = [];
+    for (String permission in permissions.keys) {
+      if (!permission.startsWith(type)) {
+        continue;
+      }
+      typePermissions
+          .add(permission.replaceAll(RegExp('$type\\(|\\)|"| '), ''));
+    }
+    return typePermissions.toSet().toList();
+  }
 
   Map<String, dynamic> getArrayCopy(
       {List<String> allow = const [], List<String> disallow = const []}) {

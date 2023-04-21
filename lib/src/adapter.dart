@@ -1,3 +1,7 @@
+import 'package:utopia_database/src/query.dart';
+
+import 'attribute.dart';
+
 abstract class Adapter {
   String namespace = '';
   String defaultDatabase = '';
@@ -61,8 +65,25 @@ abstract class Adapter {
   Future<List> list();
   Future<bool> delete(String name);
 
-  Future<bool> createCollection(String name, List attributes, List indexes);
+  Future<bool> createCollection(
+      String name, List<Attribute> attributes, List indexes);
   Future<bool> deleteCollection(String name);
+  List<String> getAttributeSelections(List<Map<String, dynamic>> queries) {
+    final List<String> selections = [];
+
+    for (var query in queries) {
+      switch (query['method']) {
+        case Query.typeSelect:
+          final List<dynamic> values = query['values'];
+          for (final value in values) {
+            selections.add(value as String);
+          }
+          break;
+      }
+    }
+
+    return selections;
+  }
 }
 
 /*

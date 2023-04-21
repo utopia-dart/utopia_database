@@ -23,5 +23,12 @@ void main() {
       final exists = await database.exists(database.getDefaultDatabase());
       expect(exists, true);
     });
+
+    test('test create collection', () async {
+      final collection= await database.createCollection('users', [
+        Attribute(id: 'username', type: Database.varString, size: 255, required: true),
+      ], []);
+      expect(collection.id, 'users');
+    })
   });
 }

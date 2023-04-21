@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:utopia_database/src/adapter.dart';
 import 'package:dart_mysql/dart_mysql.dart';
 
+import '../attribute.dart';
 import '../database.dart';
+import '../document.dart';
 
 class MariaDB extends Adapter {
   MySqlConnection? _connection;
@@ -35,7 +39,7 @@ class MariaDB extends Adapter {
 
   @override
   Future<bool> createCollection(
-      String name, List attributes, List indexes) async {
+      String name, List<Attribute> attributes, List indexes) async {
     final id = filter(name);
 
     final attributeStrings = <String>[];
@@ -44,10 +48,10 @@ class MariaDB extends Adapter {
     for (var i = 0; i < attributes.length; i++) {
       final attribute = attributes[i];
       final attrId = filter(attribute.id);
-      var attrType = _getSQLType(attribute['type'], attribute['size'] ?? 0,
-          attribute['signed'] ?? true);
+      var attrType = _getSQLType(
+          attribute.type, attribute.size ?? 0, attribute.signed ?? true);
 
-      if (attribute['array'] ?? false) {
+      if (attribute.array ?? false) {
         attrType = 'LONGTEXT';
       }
 
@@ -122,9 +126,398 @@ class MariaDB extends Adapter {
   }
 
   @override
-  Future<bool> deleteCollection(String name) {
-    // TODO: implement deleteCollection
-    throw UnimplementedError();
+  Future<bool> deleteCollection(String name) async {
+    if (_connection == null) return false;
+    try {
+      await _connection!.query(
+          "DROP TABLE `${getSQLTable(name)}`, `${getSQLTable('${name}_perms')}`;");
+      return true;
+    } on MySqlException catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> createAttribute(String collection, Attribute attribute) async {
+    final name = filter(collection);
+    final id = filter(attribute.id);
+    var sqlType = _getSQLType(
+        attribute.type, attribute.size ?? 0, attribute.signed ?? true);
+
+    if (attribute.array ?? false) {
+      sqlType = 'LONGTEXT';
+    }
+
+    try {
+      await _connection!.query(
+          "ALTER TABLE `${getSQLTable(name)}` ADD COLUMN `$id` $sqlType;");
+      return true;
+    } on MySqlException catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> updateAttribute(String collection, Attribute attribute) async {
+    final name = filter(collection);
+    final id = filter(attribute.id);
+    var sqlType = _getSQLType(
+        attribute.type, attribute.size ?? 0, attribute.signed ?? true);
+
+    if (attribute.array ?? false) {
+      sqlType = 'LONGTEXT';
+    }
+
+    try {
+      await _connection!
+          .query("ALTER TABLE `${getSQLTable(name)}` MODIFY `$id` $sqlType;");
+      return true;
+    } on MySqlException catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deleteAttribute(String collection, Attribute attribute) async {
+    final name = filter(collection);
+    final id = filter(attribute.id);
+
+    try {
+      await _connection!
+          .query("ALTER TABLE `${getSQLTable(name)}` DROP COLUMN `$id`;");
+      return true;
+    } on MySqlException catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> renameAttribute(
+      String collection, String old, String newAttr) async {
+    final name = filter(collection);
+    old = filter(old);
+    newAttr = filter(newAttr);
+
+    try {
+      await _connection!.query(
+          "ALTER TABLE `${getSQLTable(name)}` RENAME COLUMN `$old` TO `$newAttr`;");
+      return true;
+    } on MySqlException catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> createRelationship(
+      String collection, String relatedCollection, String type,
+      {bool twoWay = false, String id = '', String twoWayKey = ''}) async {
+    String name = filter(collection);
+    String relatedName = filter(relatedCollection);
+    String table = getSQLTable(name);
+    String relatedTable = getSQLTable(relatedName);
+    id = filter(id);
+    twoWayKey = filter(twoWayKey);
+    String sqlType = _getSQLType(Database.varRelationship, 0, false);
+
+    String sql = '';
+    switch (type) {
+      case Database.relationOneToOne:
+        sql = "ALTER TABLE $table ADD COLUMN `$id` $sqlType DEFAULT NULL;";
+        if (twoWay) {
+          sql +=
+              "ALTER TABLE $relatedTable ADD COLUMN `$twoWayKey` $sqlType DEFAULT NULL;";
+        }
+        break;
+      case Database.relationOneToMany:
+        sql =
+            "ALTER TABLE $relatedTable ADD COLUMN `$twoWayKey` $sqlType DEFAULT NULL;";
+        break;
+      case Database.relationManyToOne:
+        sql = "ALTER TABLE $table ADD COLUMN `$id` $sqlType DEFAULT NULL;";
+        break;
+      case Database.relationManyToMany:
+        return true;
+      default:
+        throw Exception('Invalid relationship type.');
+    }
+
+    var result = await _connection!.query(sql);
+    return (result.affectedRows ?? 0) > 0;
+  }
+
+  Future<bool> updateRelationship(String collection, String relatedCollection,
+      String type, bool twoWay, String key, String twoWayKey,
+      [String? newKey, String? newTwoWayKey]) async {
+    var name = filter(collection);
+    var relatedName = filter(relatedCollection);
+    var table = getSQLTable(name);
+    var relatedTable = getSQLTable(relatedName);
+    key = filter(key);
+    twoWayKey = filter(twoWayKey);
+
+    if (newKey != null) {
+      newKey = filter(newKey);
+    }
+    if (newTwoWayKey != null) {
+      newTwoWayKey = filter(newTwoWayKey);
+    }
+
+    var sql = '';
+
+    switch (type) {
+      case Database.relationOneToOne:
+        if (newKey != null) {
+          sql = "ALTER TABLE $table RENAME COLUMN $key TO $newKey;";
+        }
+        if (twoWay && newTwoWayKey != null) {
+          sql +=
+              "ALTER TABLE $relatedTable RENAME COLUMN $twoWayKey TO $newTwoWayKey;";
+        }
+        break;
+      case Database.relationOneToMany:
+        if (twoWay && newTwoWayKey != null) {
+          sql =
+              "ALTER TABLE $relatedTable RENAME COLUMN $twoWayKey TO $newTwoWayKey;";
+        }
+        break;
+      case Database.relationManyToOne:
+        if (newKey != null) {
+          sql = "ALTER TABLE $table RENAME COLUMN $key TO $newKey;";
+        }
+        break;
+      case Database.relationManyToMany:
+        var collectionDoc = await getDocument(Database.metadata, collection);
+        var relatedCollectionDoc =
+            await getDocument(Database.metadata, relatedCollection);
+        var junction = getSQLTable(
+            '${collectionDoc.internalId}${relatedCollectionDoc.internalId}');
+
+        if (newKey != null) {
+          sql = "ALTER TABLE $junction RENAME COLUMN `$key` TO `$newKey`;";
+        }
+        if (twoWay && newTwoWayKey != null) {
+          sql +=
+              "ALTER TABLE $junction RENAME COLUMN `$twoWayKey` TO `$newTwoWayKey`;";
+        }
+        break;
+      default:
+        throw Exception('Invalid relationship type.');
+    }
+
+    if (sql.isEmpty) {
+      return true;
+    }
+
+    var results = await _connection!.query(sql);
+    return (results.affectedRows ?? 0) > 0;
+  }
+
+  Future<bool> deleteRelationship(
+    String collection,
+    String relatedCollection,
+    String type,
+    bool twoWay,
+    String key,
+    String twoWayKey,
+    String side,
+  ) async {
+    final name = filter(collection);
+    final relatedName = filter(relatedCollection);
+    final table = getSQLTable(name);
+    final relatedTable = getSQLTable(relatedName);
+    key = filter(key);
+    twoWayKey = filter(twoWayKey);
+
+    var sql = '';
+
+    switch (type) {
+      case Database.relationOneToOne:
+        sql = "ALTER TABLE $table DROP COLUMN '$key';";
+        if (twoWay) {
+          sql += "ALTER TABLE $relatedTable DROP COLUMN '$twoWayKey';";
+        }
+        break;
+      case Database.relationOneToMany:
+        if (side == Database.relationSideParent) {
+          sql = "ALTER TABLE $relatedTable DROP COLUMN '$twoWayKey';";
+        } else if (twoWay) {
+          sql = "ALTER TABLE $table DROP COLUMN '$key';";
+        }
+        break;
+      case Database.relationManyToOne:
+        if (twoWay && side == Database.relationSideChild) {
+          sql = "ALTER TABLE $relatedTable DROP COLUMN '$twoWayKey';";
+        } else {
+          sql = "ALTER TABLE $table DROP COLUMN '$key';";
+        }
+        break;
+      case Database.relationManyToMany:
+        final collectionMeta = await getDocument(Database.metadata, collection);
+        final relatedCollectionMeta =
+            await getDocument(Database.metadata, relatedCollection);
+
+        final junction = side == Database.relationSideParent
+            ? getSQLTable(
+                '_${collectionMeta.internalId}_${relatedCollectionMeta.internalId}')
+            : getSQLTable(
+                '_${relatedCollectionMeta.internalId}_${collectionMeta.internalId}');
+
+        final perms = side == Database.relationSideParent
+            ? getSQLTable(
+                '_${collectionMeta.internalId}_${relatedCollectionMeta.internalId}_perms')
+            : getSQLTable(
+                '_${relatedCollectionMeta.internalId}_${collectionMeta.internalId}_perms');
+
+        sql = "DROP TABLE $junction; DROP TABLE $perms";
+        break;
+      default:
+        throw Exception('Invalid relationship type.');
+    }
+
+    if (sql.isEmpty) {
+      return true;
+    }
+
+    var result = await _connection!.query(sql);
+    return (result.affectedRows ?? 0) > 0;
+  }
+
+  Future<Document> createDocument(String collection, Document document) async {
+    final attributes = document.getAttributes();
+    attributes['_createdAt'] = document.createdAt;
+    attributes['_updatedAt'] = document.updatedAt;
+    attributes['_permissions'] = json.encode(document.permissions);
+
+    final name = filter(collection);
+    var columns = '';
+    var columnNames = '';
+
+    await _connection!.transaction((conn) async {
+      final batch = conn.batch();
+
+      // Insert Attributes
+      var bindIndex = 0;
+      for (final attribute in attributes.entries) {
+        final column = filter(attribute.key);
+        final bindKey = 'key_$bindIndex';
+        columns += '`$column`, ';
+        columnNames += ':$bindKey, ';
+        bindIndex++;
+      }
+
+      final stmt = await conn.prepare(
+          'INSERT INTO ${getSQLTable(name)} (${columns}_uid) VALUES ($columnNames:_uid)');
+      stmt.bindValues({
+        '_uid': document.id,
+        ...attributes.map((key, value) {
+          if (value is bool) {
+            value = value ? 1 : 0;
+          } else if (value is List || value is Map) {
+            value = jsonEncode(value);
+          }
+          return MapEntry(
+              'key_${attributes.keys.toList().indexOf(key)}', value);
+        })
+      });
+      batch.add(stmt);
+
+      final permissions = <String>[];
+      for (final type in Database.permissions) {
+        for (var permission in document.getPermissionsByType(type)) {
+          permission = permission.replaceAll('"', '');
+          permissions.add("('$type', '$permission', '${document.id}')");
+        }
+      }
+
+      if (permissions.isNotEmpty) {
+        final queryPermissions =
+            "INSERT INTO ${getSQLTable('${name}_perms')} (_type, _permission, _document) VALUES ${permissions.join(', ')}";
+        final stmtPermissions = await conn.prepare(queryPermissions);
+        batch.add(stmtPermissions);
+      }
+
+      try {
+        await batch.commit();
+        document['\$internalId'] =
+            (await getDocument(collection, document.id!))['\$internalId'];
+      } on MySqlException catch (e) {
+        switch (e.errorNumber) {
+          case 1062:
+          case 23000:
+            throw Exception('Duplicated document: ${e.message}');
+          default:
+            rethrow;
+        }
+      }
+    });
+
+    return document;
+  }
+
+  Future<Document> getDocument(String collection, String id,
+      {List<Map<String, dynamic>> queries = const []}) async {
+    final name = filter(collection);
+    final selections = getAttributeSelections(queries);
+
+    final results = await _connection!.query('''
+      SELECT ${getAttributeProjection(selections, '')}
+      FROM ${getSQLTable(name)}
+      WHERE _uid = ?
+    ''', [id]);
+
+    if (results.isEmpty) {
+      return Document({});
+    }
+
+    final document = results.first.fields;
+
+    document['\$id'] = document['_uid'];
+    document['\$internalId'] = document['_id'];
+    document['\$createdAt'] = document['_createdAt'];
+    document['\$updatedAt'] = document['_updatedAt'];
+    document['\$permissions'] = json.decode(document['_permissions'] ?? '[]');
+
+    document.remove('_id');
+    document.remove('_uid');
+    document.remove('_createdAt');
+    document.remove('_updatedAt');
+    document.remove('_permissions');
+
+    return Document(document);
+  }
+
+  String getAttributeProjection(List<String> selections, String prefix) {
+    if (selections.isEmpty || selections.contains('')) {
+      if (prefix.isNotEmpty) {
+        return "$prefix.";
+      }
+      return '*';
+    }
+
+    selections
+        .addAll(['_uid', '_id', '_createdAt', '_updatedAt', '_permissions']);
+
+    if (prefix.isNotEmpty) {
+      for (var i = 0; i < selections.length; i++) {
+        selections[i] = "$prefix.${selections[i]}";
+      }
+    } else {
+      for (var i = 0; i < selections.length; i++) {
+        selections[i] = "${selections[i]}";
+      }
+    }
+
+    return selections.join(', ');
+  }
+
+  String getSQLSchema() {
+    if (!getSupportForSchemas()) {
+      return '';
+    }
+    return '`${getDefaultDatabase()}`.';
+  }
+
+  String getSQLTable(String name) {
+    return '${getSQLSchema()}`${getNamespace()}_$name`';
+  }
+
+  bool getSupportForSchemas() {
+    return true;
   }
 
   @override
