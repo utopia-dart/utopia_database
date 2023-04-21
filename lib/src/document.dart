@@ -15,7 +15,7 @@ class Document extends MapMixin<String, dynamic> {
    * @see MapMixin::__construct
    *
    */
-  Document(Map<String, dynamic> input) {
+  Document([Map<String, dynamic> input = const {}]) {
     if (input.containsKey('\$permissions') && input['\$permissions'] is! List) {
       throw Exception('\$permissions must be of type List');
     }
@@ -47,6 +47,11 @@ class Document extends MapMixin<String, dynamic> {
     return defaultValue;
   }
 
+  Document setAttribute(String key, dynamic value) {
+    this[key] = value;
+    return this;
+  }
+
   Map<String, dynamic> getAttributes() {
     Map<String, dynamic> attributes = {};
     List<String> excludedAttributes = [
@@ -58,25 +63,24 @@ class Document extends MapMixin<String, dynamic> {
       '\$updatedAt'
     ];
     innerMap.forEach((key, value) {
-      if (value.isGetter && !value.isStatic) {
-        if (!excludedAttributes.contains(key)) {
-          return;
-        }
-        attributes[key] = value;
+      if (excludedAttributes.contains(key)) {
+        return;
       }
+      attributes[key] = value;
     });
 
     return attributes;
   }
 
   String? get id => innerMap['\$id'];
-  String? get internalId => innerMap['\$internalId'];
-  String? get createdAt => getAttribute('\$createdAt');
-  String? get updatedAt => getAttribute('\$updatedAt');
-  Map<String, dynamic> get permissions => getAttribute('\$permissions');
+  String? get internalId => innerMap['\$internalId']?.toString();
+  DateTime? get createdAt => getAttribute('\$createdAt');
+  DateTime? get updatedAt => getAttribute('\$updatedAt');
+  List<String> get permissions => getAttribute('\$permissions', []);
+
   List<String> getPermissionsByType(String type) {
     List<String> typePermissions = [];
-    for (String permission in permissions.keys) {
+    for (String permission in permissions) {
       if (!permission.startsWith(type)) {
         continue;
       }

@@ -1,6 +1,7 @@
 import 'package:utopia_database/src/query.dart';
 
 import 'attribute.dart';
+import 'document.dart';
 
 abstract class Adapter {
   String namespace = '';
@@ -59,22 +60,26 @@ abstract class Adapter {
     return value;
   }
 
+  bool getSupportForCasting();
+
   Future<bool> ping();
   Future<bool> create(String name);
   Future<bool> exists(String database, {String? collection});
   Future<List> list();
   Future<bool> delete(String name);
 
+ Future<Document> createDocument(String collection, Document document);
+
   Future<bool> createCollection(
       String name, List<Attribute> attributes, List indexes);
   Future<bool> deleteCollection(String name);
-  List<String> getAttributeSelections(List<Map<String, dynamic>> queries) {
+  List<String> getAttributeSelections(List<Query> queries) {
     final List<String> selections = [];
 
     for (var query in queries) {
-      switch (query['method']) {
+      switch (query.method) {
         case Query.typeSelect:
-          final List<dynamic> values = query['values'];
+          final List<dynamic> values = query.values;
           for (final value in values) {
             selections.add(value as String);
           }
@@ -84,6 +89,9 @@ abstract class Adapter {
 
     return selections;
   }
+
+  Future<Document?> getDocument(String collection, String id,
+      {List<Query> queries = const []});
 }
 
 /*

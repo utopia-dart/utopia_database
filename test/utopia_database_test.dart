@@ -25,10 +25,15 @@ void main() {
     });
 
     test('test create collection', () async {
-      final collection= await database.createCollection('users', [
-        Attribute(id: 'username', type: Database.varString, size: 255, required: true),
+      // final deleted = await database.deleteCollection('users');
+      final collection = await database.createCollection('users', [
+        Attribute(
+            id: 'username',
+            type: Database.varString,
+            size: 255,
+            required: true),
       ], []);
-      expect(collection.id, 'users');
-    })
+      expect(collection!.id, 'users');
+    });
   });
 }

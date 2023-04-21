@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:utopia_database/src/adapter.dart';
 import 'package:dart_mysql/dart_mysql.dart';
+import 'package:utopia_database/src/date_time_extension.dart';
+import 'package:utopia_database/src/query.dart';
 
 import '../attribute.dart';
 import '../database.dart';
@@ -377,88 +379,87 @@ class MariaDB extends Adapter {
     return (result.affectedRows ?? 0) > 0;
   }
 
+  @override
   Future<Document> createDocument(String collection, Document document) async {
     final attributes = document.getAttributes();
-    attributes['_createdAt'] = document.createdAt;
-    attributes['_updatedAt'] = document.updatedAt;
+    attributes['_createdAt'] = (document.createdAt ?? DateTime.now()).format();
+    attributes['_updatedAt'] = (document.updatedAt ?? DateTime.now()).format();
     attributes['_permissions'] = json.encode(document.permissions);
 
     final name = filter(collection);
-    var columns = '';
-    var columnNames = '';
+    var columns = <String>[];
+    var columnNames = <String>[];
+    var values = <Object>[];
+    var index = 0;
 
-    await _connection!.transaction((conn) async {
-      final batch = conn.batch();
+    try {
+      await _connection!.transaction((conn) async {
+        for (final attribute in attributes.entries) {
+          final column = filter(attribute.key);
+          final bindKey = 'key_$index';
+          columns.add('`$column`');
+          columnNames.add('?');
+          values.add(attribute.value is List || attribute.value is Map
+              ? json.encode(attribute.value)
+              : attribute.value);
+          index++;
+        }
 
-      // Insert Attributes
-      var bindIndex = 0;
-      for (final attribute in attributes.entries) {
-        final column = filter(attribute.key);
-        final bindKey = 'key_$bindIndex';
-        columns += '`$column`, ';
-        columnNames += ':$bindKey, ';
-        bindIndex++;
-      }
+        final statement = 'INSERT INTO ${getSQLTable(name)} '
+            '(${columns.join(', ')}, `_uid`) '
+            'VALUES (${columnNames.join(', ')}, ?)';
 
-      final stmt = await conn.prepare(
-          'INSERT INTO ${getSQLTable(name)} (${columns}_uid) VALUES ($columnNames:_uid)');
-      stmt.bindValues({
-        '_uid': document.id,
-        ...attributes.map((key, value) {
-          if (value is bool) {
-            value = value ? 1 : 0;
-          } else if (value is List || value is Map) {
-            value = jsonEncode(value);
+        values.add(document.id!);
+
+        final result = await conn.query(statement, values);
+
+        final documentResult = await getDocument(
+          collection,
+          document.id!,
+        );
+        document['\$internalId'] = documentResult.internalId;
+
+        final permissions = <String>[];
+        for (final type in Database.permissions) {
+          for (final permission in document.getPermissionsByType(type)) {
+            final permissionStr = permission.replaceAll('"', '');
+            permissions.add("('$type', '$permissionStr', '${document.id}')");
           }
-          return MapEntry(
-              'key_${attributes.keys.toList().indexOf(key)}', value);
-        })
+        }
+
+        if (permissions.isNotEmpty) {
+          final queryPermissions =
+              "INSERT INTO ${getSQLTable('${name}_perms')} "
+              "(`_type`, `_permission`, `_document`) "
+              "VALUES ${permissions.join(', ')}";
+          await conn.query(queryPermissions);
+        }
       });
-      batch.add(stmt);
-
-      final permissions = <String>[];
-      for (final type in Database.permissions) {
-        for (var permission in document.getPermissionsByType(type)) {
-          permission = permission.replaceAll('"', '');
-          permissions.add("('$type', '$permission', '${document.id}')");
-        }
+    } on MySqlException catch (e) {
+      switch (e.errorNumber) {
+        case 1062:
+        case 23000:
+          throw Exception('Duplicated document: ${e.message}');
+        default:
+          rethrow;
       }
-
-      if (permissions.isNotEmpty) {
-        final queryPermissions =
-            "INSERT INTO ${getSQLTable('${name}_perms')} (_type, _permission, _document) VALUES ${permissions.join(', ')}";
-        final stmtPermissions = await conn.prepare(queryPermissions);
-        batch.add(stmtPermissions);
-      }
-
-      try {
-        await batch.commit();
-        document['\$internalId'] =
-            (await getDocument(collection, document.id!))['\$internalId'];
-      } on MySqlException catch (e) {
-        switch (e.errorNumber) {
-          case 1062:
-          case 23000:
-            throw Exception('Duplicated document: ${e.message}');
-          default:
-            rethrow;
-        }
-      }
-    });
+    }
 
     return document;
   }
 
+  @override
   Future<Document> getDocument(String collection, String id,
-      {List<Map<String, dynamic>> queries = const []}) async {
+      {List<Query> queries = const []}) async {
     final name = filter(collection);
     final selections = getAttributeSelections(queries);
 
-    final results = await _connection!.query('''
+    final query = '''
       SELECT ${getAttributeProjection(selections, '')}
       FROM ${getSQLTable(name)}
       WHERE _uid = ?
-    ''', [id]);
+    ''';
+    final results = await _connection!.query(query, [id]);
 
     if (results.isEmpty) {
       return Document({});
@@ -470,7 +471,13 @@ class MariaDB extends Adapter {
     document['\$internalId'] = document['_id'];
     document['\$createdAt'] = document['_createdAt'];
     document['\$updatedAt'] = document['_updatedAt'];
-    document['\$permissions'] = json.decode(document['_permissions'] ?? '[]');
+
+    var permissions = document['_permissions'];
+    if (permissions is Blob) {
+      permissions = Utf8Decoder().convert(permissions.toBytes());
+    }
+
+    document['\$permissions'] = json.decode(permissions ?? '[]');
 
     document.remove('_id');
     document.remove('_uid');
@@ -616,5 +623,10 @@ class MariaDB extends Adapter {
       default:
         throw Exception('Unknown Type');
     }
+  }
+
+  @override
+  bool getSupportForCasting() {
+    return false;
   }
 }

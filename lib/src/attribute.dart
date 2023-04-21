@@ -54,7 +54,7 @@ class Attribute {
 
   factory Attribute.fromMap(Map<String, dynamic> map) {
     return Attribute(
-      id: map['id'] ?? '',
+      id: map['id'] ?? map['\$id'] ?? '',
       type: map['type'] ?? '',
       size: map['size']?.toInt() ?? 0,
       required: map['required'] ?? false,
