@@ -24,11 +24,15 @@ jobs:
           fetch-depth: 2
           submodules: recursive
         
-      - name: Build
-        run: docker-compose up -d
+      - name: Setup Docker
+        run: |
+          curl -fsSL get.docker.com | bash
+      
+      - name: Start Services
+        run: docker compose up -d
 
       - name: Test
-        run: docker-compose exec app dart test
+        run: docker compose exec app dart test
       
       - name: Stop
-        run: docker-compose down
+        run: docker compose down
