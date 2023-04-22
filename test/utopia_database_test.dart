@@ -10,7 +10,7 @@ void main() {
 
     setUp(() async {
       await mariadb.init(
-          host: 'localhost', port: 3306, user: 'root', password: 'root');
+          host: 'mariadb', port: 3306, user: 'root', password: 'root');
       // Additional setup goes here.
     });
 
