@@ -1,4 +1,7 @@
 name: Test
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   push:
@@ -15,8 +18,17 @@ jobs:
     container:
       image: dart:latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Install dependencies
-        run: dart pub get
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+          submodules: recursive
+      - run: git checkout HEAD^2
+
+      - name: Start Containers
+        run:  |
+          docker compose up -d
+          sleep 10
+
       - name: Test
-        run: dart test
+        run: docker compose exec app dart test
