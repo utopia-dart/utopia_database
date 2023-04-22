@@ -1,14 +1,6 @@
 version: '3'
 
 services:
-  app:
-    image: dart:stable
-    volumes:
-      - .:/app
-    working_dir: /app
-    command: bash -c "dart pub get && tail -f /dev/null"
-    depends_on:
-      - mariadb
   mariadb:
     image: mariadb:10.7
     environment:
@@ -18,14 +10,5 @@ services:
       MYSQL_PASSWORD: password
     ports:
       - "3306:3306"
-  adminer:
-    image: adminer
-    restart: always
-    ports:
-      - 9506:8080
-    depends_on:
-      - mariadb
-    environment:
-      ADMINER_DEFAULT_SERVER: mariadb
-      ADMINER_DESIGN: nett
+  
       
