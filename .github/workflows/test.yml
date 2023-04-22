@@ -32,7 +32,9 @@ jobs:
         run: docker compose up -d
 
       - name: Test
-        run: docker compose exec app dart test
+        run: |
+          dart pub get
+          dart test
       
       - name: Stop
         run: docker compose down
