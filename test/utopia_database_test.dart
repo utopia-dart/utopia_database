@@ -43,13 +43,19 @@ void main() {
       expect(document.id, 'myspecialdocument');
     });
 
-    // test('test Delete Collection', () async {
-    //   final deleted = await database.deleteCollection('users');
-    //   expect(deleted, true);
-    // });
-    // test('test Delete', () async {
-    //   final deleted = await database.delete(database.getDefaultDatabase());
-    //   expect(deleted, true);
-    // });
+    test('delete document', () async {
+      final deleted =
+          await database.deleteDocument('users', 'myspecialdocument');
+      expect(deleted, true);
+    });
+
+    test('test Delete Collection', () async {
+      final deleted = await database.deleteCollection('users');
+      expect(deleted, true);
+    });
+    test('test Delete', () async {
+      final deleted = await database.delete(database.getDefaultDatabase());
+      expect(deleted, true);
+    });
   });
 }
