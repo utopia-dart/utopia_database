@@ -15,28 +15,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    container:
-      image: dart:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 2
           submodules: recursive
-        
-      - name: Setup Docker
-        run: |
-          curl -fsSL get.docker.com | bash
-      
+
       - name: Start Services
         run: |
           docker compose up -d
           sleep: 5
 
       - name: Test
-        run: |
-          dart pub get
-          dart test
+        run: docker compose exec app dart test
       
       - name: Stop
         run: docker compose down
