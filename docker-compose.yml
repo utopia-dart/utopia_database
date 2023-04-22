@@ -18,3 +18,14 @@ services:
       MYSQL_PASSWORD: password
     ports:
       - "3306:3306"
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 9506:8080
+    depends_on:
+      - mariadb
+    environment:
+      ADMINER_DEFAULT_SERVER: mariadb
+      ADMINER_DESIGN: nett
+      

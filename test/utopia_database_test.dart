@@ -25,7 +25,6 @@ void main() {
     });
 
     test('test create collection', () async {
-      // final deleted = await database.deleteCollection('users');
       final collection = await database.createCollection('users', [
         Attribute(
             id: 'username',
@@ -35,5 +34,22 @@ void main() {
       ], []);
       expect(collection!.id, 'users');
     });
+
+    test('test create document', () async {
+      final document = await database.createDocument(
+          'users',
+          Document(
+              {"\$id": 'myspecialdocument', 'username': 'myspecialusername'}));
+      expect(document.id, 'myspecialdocument');
+    });
+
+    // test('test Delete Collection', () async {
+    //   final deleted = await database.deleteCollection('users');
+    //   expect(deleted, true);
+    // });
+    // test('test Delete', () async {
+    //   final deleted = await database.delete(database.getDefaultDatabase());
+    //   expect(deleted, true);
+    // });
   });
 }

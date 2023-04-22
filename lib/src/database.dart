@@ -205,9 +205,16 @@ class Database {
       'json',
       (value, [Document? document, Database? database]) {
         value = (value is Document) ? value.getArrayCopy() : value;
-        value = (value is Attribute) ? value.toJson() : value;
+        value = (value is Attribute) ? value.toMap() : value;
+        value = (value is List)
+            ? value.map((value) => value is Attribute
+                ? value.toMap()
+                : value is Document
+                    ? value.getArrayCopy()
+                    : value).toList()
+            : value;
 
-        if (value is! Map<String, dynamic> && value is! Map) {
+        if (value is! Map && value is! List) {
           return value;
         }
 
@@ -218,11 +225,11 @@ class Database {
           return value;
         }
 
-        value = json.decode(value) ?? {};
+        value = jsonDecode(value) ?? {};
 
-        if (value.containsKey('\$id')) {
-          return Document(value);
-        } else {
+        if (value is Map && value.containsKey('\$id')) {
+          return Document(Map<String, dynamic>.from(value));
+        } else if(value is Map) {
           value = value.map((key, item) {
             if (item is Map<String, dynamic> && item.containsKey('\$id')) {
               return MapEntry(key, Document(item));
@@ -293,6 +300,10 @@ class Database {
     return true;
   }
 
+  Future<bool> delete(String name) {
+    return adapter.delete(name);
+  }
+
   Future<Document?> createCollection(
       String id, List<Attribute> attributes, List indexes) async {
     final collection = await getCollection(id);
@@ -300,11 +311,11 @@ class Database {
       throw Exception('Collection $id Exists!');
     }
 
+    await adapter.createCollection(id, attributes, indexes);
+
     if (id == metadata) {
       return Document(collection!);
     }
-    await adapter.createCollection(id, attributes, indexes);
-
     final createdCollection = Document({
       '\$id': id,
       '\$permissions': [
@@ -335,6 +346,46 @@ class Database {
 
     final createdDocument = await createDocument(metadata, createdCollection);
     return createdDocument;
+  }
+
+  Future<bool> deleteCollection(String id) async {
+    var collection = getDocument(metadata, id);
+
+    // var relationships = collection.attributes
+    //     .where((attribute) => attribute.type == Database.VAR_RELATIONSHIP);
+
+    // for (var relationship in relationships) {
+    //   deleteRelationship(collection.id, relationship.id);
+    // }
+
+    await adapter.deleteCollection(id);
+
+    var deleted = deleteDocument(metadata, id);
+
+    return deleted;
+  }
+
+  Future<bool> deleteDocument(String collection, String id) async {
+    var document = await getDocument(collection,
+        id); // Skip ensures user does not need read permission for this
+    var collectionObj = await getCollection(collection);
+
+    if (collectionObj == null || document == null) {
+      throw Exception('Not Found');
+    }
+
+    // if (collectionObj.id != metadata && !validator.isValid(document.delete)) {
+    //   throw AuthorizationException(validator.getDescription());
+    // }
+
+    // if (resolveRelationships) {
+    //   document =
+    //       silent(() => deleteDocumentRelationships(collectionObj, document));
+    // }
+
+    var deleted = await adapter.deleteDocument(collectionObj.id!, id);
+
+    return deleted;
   }
 
   Future<Document> createDocument(String collection, Document document) async {
@@ -575,6 +626,10 @@ class Database {
         }
       }
 
+      if (attribute.type == Database.varString && value is! String) {
+        value = value.toString();
+      }
+
       value = array ? value : [value];
       value ??= [];
 
@@ -601,9 +656,10 @@ class Database {
 
   Document encode(Document collection, Document document) {
     var attributes = collection.getAttribute('attributes', []);
+
     attributes = (attributes.map((attribute) => attribute is Map
         ? Attribute.fromMap(Map<String, dynamic>.from(attribute))
-        : attribute)).toList();
+        : attribute is String ? Attribute.fromJson(attribute) : attribute)).toList();
     attributes.addAll(getInternalAttributes());
 
     for (Attribute attribute in attributes) {

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
+import 'package:mysql1/mysql1.dart';
 import 'package:utopia_database/src/adapter.dart';
-import 'package:dart_mysql/dart_mysql.dart';
 import 'package:utopia_database/src/date_time_extension.dart';
 import 'package:utopia_database/src/query.dart';
 
@@ -124,7 +124,7 @@ class MariaDB extends Adapter {
 
     final result = await _connection!.query("DROP DATABASE `$name`;");
 
-    return result.affectedRows == 1;
+    return (result.affectedRows ?? 0) >= 1;
   }
 
   @override
@@ -157,6 +157,23 @@ class MariaDB extends Adapter {
       return false;
     }
   }
+
+
+@override
+  Future<bool> deleteDocument(String collection, String id) async {
+  var name = filter(collection);
+
+  try {
+    await _connection!.transaction((txn) async {
+      await txn.query('DELETE FROM ${getSQLTable(name)} WHERE _uid = ?', [id]);
+      await txn.query('DELETE FROM ${getSQLTable('${name}_perms')} WHERE _document = ?', [id]);
+    });
+    return true;
+  } catch (e) {
+    rethrow;
+  }
+}
+
 
   Future<bool> updateAttribute(String collection, Attribute attribute) async {
     final name = filter(collection);

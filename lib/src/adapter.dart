@@ -60,6 +60,8 @@ abstract class Adapter {
     return value;
   }
 
+  Future<bool> deleteDocument(String collection, String id);
+
   bool getSupportForCasting();
 
   Future<bool> ping();
@@ -68,7 +70,7 @@ abstract class Adapter {
   Future<List> list();
   Future<bool> delete(String name);
 
- Future<Document> createDocument(String collection, Document document);
+  Future<Document> createDocument(String collection, Document document);
 
   Future<bool> createCollection(
       String name, List<Attribute> attributes, List indexes);

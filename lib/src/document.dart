@@ -76,7 +76,7 @@ class Document extends MapMixin<String, dynamic> {
   String? get internalId => innerMap['\$internalId']?.toString();
   DateTime? get createdAt => getAttribute('\$createdAt');
   DateTime? get updatedAt => getAttribute('\$updatedAt');
-  List<String> get permissions => getAttribute('\$permissions', []);
+  List<String> get permissions => List<String>.from(getAttribute('\$permissions', []));
 
   List<String> getPermissionsByType(String type) {
     List<String> typePermissions = [];
