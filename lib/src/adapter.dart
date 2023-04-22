@@ -202,4 +202,3 @@ abstract class Adapter {
     abstract public function increaseDocumentAttribute(string $collection, string $id, string $attribute, int|float $value, int|float|null $min = null, int|float|null $max = null): bool;
 }
 */
-

@@ -44,13 +44,15 @@ class Collection {
       id: map['id'] ?? '',
       collection: map['collection'] ?? '',
       name: map['name'] ?? '',
-      attributes: List<Attribute>.from(map['attributes']?.map((x) => Attribute.fromMap(x))),
+      attributes: List<Attribute>.from(
+          map['attributes']?.map((x) => Attribute.fromMap(x))),
     );
   }
 
   String toJson() => json.encode(toMap());
 
-  factory Collection.fromJson(String source) => Collection.fromMap(json.decode(source));
+  factory Collection.fromJson(String source) =>
+      Collection.fromMap(json.decode(source));
 
   @override
   String toString() {
@@ -61,19 +63,19 @@ class Collection {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     final listEquals = const DeepCollectionEquality().equals;
-  
+
     return other is Collection &&
-      other.id == id &&
-      other.collection == collection &&
-      other.name == name &&
-      listEquals(other.attributes, attributes);
+        other.id == id &&
+        other.collection == collection &&
+        other.name == name &&
+        listEquals(other.attributes, attributes);
   }
 
   @override
   int get hashCode {
     return id.hashCode ^
-      collection.hashCode ^
-      name.hashCode ^
-      attributes.hashCode;
+        collection.hashCode ^
+        name.hashCode ^
+        attributes.hashCode;
   }
 }

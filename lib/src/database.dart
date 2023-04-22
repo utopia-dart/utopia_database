@@ -207,11 +207,13 @@ class Database {
         value = (value is Document) ? value.getArrayCopy() : value;
         value = (value is Attribute) ? value.toMap() : value;
         value = (value is List)
-            ? value.map((value) => value is Attribute
-                ? value.toMap()
-                : value is Document
-                    ? value.getArrayCopy()
-                    : value).toList()
+            ? value
+                .map((value) => value is Attribute
+                    ? value.toMap()
+                    : value is Document
+                        ? value.getArrayCopy()
+                        : value)
+                .toList()
             : value;
 
         if (value is! Map && value is! List) {
@@ -229,7 +231,7 @@ class Database {
 
         if (value is Map && value.containsKey('\$id')) {
           return Document(Map<String, dynamic>.from(value));
-        } else if(value is Map) {
+        } else if (value is Map) {
           value = value.map((key, item) {
             if (item is Map<String, dynamic> && item.containsKey('\$id')) {
               return MapEntry(key, Document(item));
@@ -659,7 +661,9 @@ class Database {
 
     attributes = (attributes.map((attribute) => attribute is Map
         ? Attribute.fromMap(Map<String, dynamic>.from(attribute))
-        : attribute is String ? Attribute.fromJson(attribute) : attribute)).toList();
+        : attribute is String
+            ? Attribute.fromJson(attribute)
+            : attribute)).toList();
     attributes.addAll(getInternalAttributes());
 
     for (Attribute attribute in attributes) {

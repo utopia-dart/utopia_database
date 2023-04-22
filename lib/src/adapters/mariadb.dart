@@ -158,22 +158,23 @@ class MariaDB extends Adapter {
     }
   }
 
-
-@override
+  @override
   Future<bool> deleteDocument(String collection, String id) async {
-  var name = filter(collection);
+    var name = filter(collection);
 
-  try {
-    await _connection!.transaction((txn) async {
-      await txn.query('DELETE FROM ${getSQLTable(name)} WHERE _uid = ?', [id]);
-      await txn.query('DELETE FROM ${getSQLTable('${name}_perms')} WHERE _document = ?', [id]);
-    });
-    return true;
-  } catch (e) {
-    rethrow;
+    try {
+      await _connection!.transaction((txn) async {
+        await txn
+            .query('DELETE FROM ${getSQLTable(name)} WHERE _uid = ?', [id]);
+        await txn.query(
+            'DELETE FROM ${getSQLTable('${name}_perms')} WHERE _document = ?',
+            [id]);
+      });
+      return true;
+    } catch (e) {
+      rethrow;
+    }
   }
-}
-
 
   Future<bool> updateAttribute(String collection, Attribute attribute) async {
     final name = filter(collection);

@@ -27,7 +27,6 @@ class Permission {
     return '$permission("${role.toString()}")';
   }
 
-
   String getRole() {
     return role.getRole();
   }

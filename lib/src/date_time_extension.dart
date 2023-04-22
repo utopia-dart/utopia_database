@@ -18,5 +18,5 @@ extension DateTimeExtension on DateTime {
     } catch (e) {
       return dbFormat;
     }
-  } 
+  }
 }
