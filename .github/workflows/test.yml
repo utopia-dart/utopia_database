@@ -24,11 +24,11 @@ jobs:
           fetch-depth: 2
           submodules: recursive
         
-      - name: Start Containers
-        uses: docker/compose-action@v2
-        with:
-          compose-file: docker-compose.yml
-          command: up -d
+      - name: Build
+        run: docker-compose up -d
 
       - name: Test
-        run: docker compose exec app dart test
+        run: docker-compose exec app dart test
+      
+      - name: Stop
+        run: docker-compose down
