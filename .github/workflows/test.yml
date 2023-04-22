@@ -25,9 +25,10 @@ jobs:
           submodules: recursive
 
       - name: Start Containers
-        run:  |
-          docker compose up -d
-          sleep 10
+        uses: docker/compose-action@v2
+        with:
+          compose-file: docker-compose.yml
+          command: up -d
 
       - name: Test
         run: docker compose exec app dart test
