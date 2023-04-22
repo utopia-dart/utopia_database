@@ -23,7 +23,10 @@ jobs:
         with:
           fetch-depth: 2
           submodules: recursive
-
+        
+      - name: Build image
+        uses: docker/build-push-action@v3
+        
       - name: Start Containers
         run:  |
           docker compose up -d
